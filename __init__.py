@@ -2,7 +2,7 @@
 #vibecoded by Gnandeep Chintala and Gemini
 
 from aqt import mw, gui_hooks
-from aqt.qt import QTimer, QLabel, Qt, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QAction, qconnect
+from aqt.qt import QTimer, QLabel, Qt, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QAction, qconnect, QDialog, QSlider
 
 # Global variables
 timer_label = None
@@ -13,18 +13,20 @@ time_left = 0
 is_paused = False
 current_deck_id = None
 
+# Target times in seconds
+sec_per_new = 11      
+sec_per_learn = 9     
+sec_per_review = 9
+settings_dialog = None
+
 def get_dynamic_timer_duration():
     """Calculates total seconds based on remaining cards in the active deck."""
+    global sec_per_new, sec_per_learn, sec_per_review
     counts = mw.col.sched.counts()
     if not counts:
         return 0 
         
-    new_cards, learning_cards, review_cards = counts
-    
-    # Target times in seconds
-    sec_per_new = 11      
-    sec_per_learn = 9     
-    sec_per_review = 9    
+    new_cards, learning_cards, review_cards = counts   
     
     return (new_cards * sec_per_new) + (learning_cards * sec_per_learn) + (review_cards * sec_per_review)
 
@@ -86,10 +88,86 @@ def toggle_timer_visibility():
         else:
             container.show()
 
-# Add the toggle button directly to Anki's Tools menu
-action = QAction("Toggle Focus Timer", mw)
-qconnect(action.triggered, toggle_timer_visibility)
+class TimerSettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Anki Timer Settings")
+        self.setMinimumWidth(300)
+        
+        layout = QVBoxLayout()
+        
+        # New Cards Slider
+        self.new_label = QLabel(f"New Cards: {sec_per_new}s")
+        self.new_slider = QSlider(Qt.Orientation.Horizontal)
+        self.new_slider.setRange(1, 20)
+        self.new_slider.setValue(sec_per_new)
+        self.new_slider.valueChanged.connect(self.update_new)
+        
+        # Learn Cards Slider
+        self.learn_label = QLabel(f"Learn Cards: {sec_per_learn}s")
+        self.learn_slider = QSlider(Qt.Orientation.Horizontal)
+        self.learn_slider.setRange(1, 20)
+        self.learn_slider.setValue(sec_per_learn)
+        self.learn_slider.valueChanged.connect(self.update_learn)
+        
+        # Review Cards Slider
+        self.review_label = QLabel(f"Review Cards: {sec_per_review}s")
+        self.review_slider = QSlider(Qt.Orientation.Horizontal)
+        self.review_slider.setRange(1, 20)
+        self.review_slider.setValue(sec_per_review)
+        self.review_slider.valueChanged.connect(self.update_review)
+        
+        # Move the toggle visibility button into this menu
+        self.toggle_btn = QPushButton("Show/Hide Timer on Screen")
+        self.toggle_btn.clicked.connect(toggle_timer_visibility)
+        
+        # Add widgets to layout
+        layout.addWidget(self.new_label)
+        layout.addWidget(self.new_slider)
+        layout.addWidget(self.learn_label)
+        layout.addWidget(self.learn_slider)
+        layout.addWidget(self.review_label)
+        layout.addWidget(self.review_slider)
+        layout.addSpacing(10)
+        layout.addWidget(self.toggle_btn)
+        
+        self.setLayout(layout)
+        
+    def update_new(self, val):
+        global sec_per_new
+        sec_per_new = val
+        self.new_label.setText(f"New Cards: {val}s")
+        reset_timer() # Recalculates immediately
+        
+    def update_learn(self, val):
+        global sec_per_learn
+        sec_per_learn = val
+        self.learn_label.setText(f"Learn Cards: {val}s")
+        reset_timer()
+        
+    def update_review(self, val):
+        global sec_per_review
+        sec_per_review = val
+        self.review_label.setText(f"Review Cards: {val}s")
+        reset_timer()
+
+def open_settings_dialog():
+    global settings_dialog
+    if not settings_dialog:
+        settings_dialog = TimerSettingsDialog(mw)
+    settings_dialog.show()
+    settings_dialog.raise_()
+    settings_dialog.activateWindow()
+
+# --- CHANGED: Renamed the Tools menu item and pointed it to the new settings dialog ---
+action = QAction("Anki Timer", mw)
+qconnect(action.triggered, open_settings_dialog)
 mw.form.menuTools.addAction(action)
+
+# Add the toggle button directly to Anki's Tools menu
+#action = QAction("Anki Timer", mw)
+#qconnect(action.triggered, toggle_timer_visibility)
+#mw.form.menuTools.addAction(action)
 
 def setup_shortcuts(state: str, shortcuts: list):
     shortcuts.append(("Ctrl+T", toggle_timer))
