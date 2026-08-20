@@ -104,23 +104,28 @@ def setup_timer_ui():
         # Create a sub-layout just for the buttons to sit side-by-side
         btn_layout = QHBoxLayout()
         
-        minus_btn = QPushButton("-5m")
+        minus_btn = QPushButton("-")
         # Made the buttons slightly translucent too so they blend in
         minus_btn.setStyleSheet("color: white; background-color: rgba(68, 68, 68, 150); border-radius: 5px; padding: 4px;")
         minus_btn.clicked.connect(remove_time)
         
-        plus_btn = QPushButton("+5m")
+        plus_btn = QPushButton("+")
         plus_btn.setStyleSheet("color: white; background-color: rgba(68, 68, 68, 150); border-radius: 5px; padding: 4px;")
         plus_btn.clicked.connect(add_time)
         
         pause_btn = QPushButton("Pause")
         pause_btn.setStyleSheet("color: white; background-color: rgba(68, 68, 68, 150); border-radius: 5px; padding: 4px;")
         pause_btn.clicked.connect(toggle_timer)
+
+        reset_btn = QPushButton("Reset")
+        reset_btn.setStyleSheet("color: white; background-color: rgba(68, 68, 68, 150); border-radius: 5px; padding: 4px;")
+        reset_btn.clicked.connect(reset_timer)
         
         # Add everything together
         btn_layout.addWidget(minus_btn)
         btn_layout.addWidget(plus_btn)
         btn_layout.addWidget(pause_btn)
+        btn_layout.addWidget(reset_btn)
         
         main_layout.addWidget(timer_label)
         main_layout.addLayout(btn_layout)
@@ -136,5 +141,19 @@ def setup_timer_ui():
     
     study_timer.start(1000)
 
+# 1. THE AUTOMATION FUNCTION
+def auto_show_timer(next_state: str, old_state: str):
+    """Automatically shows the timer in decks and hides it on the home screen."""
+    global container
+    if container:
+        # Show the timer on the deck overview or review screens
+        if next_state in ["overview", "review"]:
+            container.show()
+        # Hide the timer when returning to the main deck browser
+        elif next_state == "deckBrowser":
+            container.hide()
+
 gui_hooks.profile_did_open.append(setup_timer_ui)
 gui_hooks.state_shortcuts_will_change.append(setup_shortcuts)
+# Attach our automation function to Anki's state changes
+gui_hooks.state_did_change.append(auto_show_timer)
