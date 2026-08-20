@@ -9,8 +9,24 @@ timer_label = None
 study_timer = None
 pause_btn = None
 container = None
-time_left = 60 * 60  
+time_left = 0
 is_paused = False
+current_deck_id = None
+
+def get_dynamic_timer_duration():
+    """Calculates total seconds based on remaining cards in the active deck."""
+    counts = mw.col.sched.counts()
+    if not counts:
+        return 0 
+        
+    new_cards, learning_cards, review_cards = counts
+    
+    # Target times in seconds
+    sec_per_new = 11      
+    sec_per_learn = 9     
+    sec_per_review = 9    
+    
+    return (new_cards * sec_per_new) + (learning_cards * sec_per_learn) + (review_cards * sec_per_review)
 
 def update_display():
     global time_left
@@ -26,7 +42,7 @@ def update_timer():
         update_display()
     else:
         timer_label.setText("Time's up!")
-        timer_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #55ff55; background: transparent;")
+        timer_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #FF2800; background: transparent;")
         study_timer.stop()
 
 def toggle_timer():
@@ -42,7 +58,10 @@ def toggle_timer():
 
 def reset_timer():
     global time_left
-    time_left = 60 * 60
+
+    new_duration = get_dynamic_timer_duration()
+    time_left = new_duration if new_duration > 0 else 0
+
     update_display()
     if is_paused:
         toggle_timer()
@@ -77,6 +96,8 @@ def setup_shortcuts(state: str, shortcuts: list):
     shortcuts.append(("Ctrl+R", reset_timer))
     shortcuts.append(("Ctrl+=", add_time))
     shortcuts.append(("Ctrl+-", remove_time))
+
+
 
 def setup_timer_ui():
     global timer_label, study_timer, pause_btn, container
@@ -144,13 +165,28 @@ def setup_timer_ui():
 # 1. THE AUTOMATION FUNCTION
 def auto_show_timer(next_state: str, old_state: str):
     """Automatically shows the timer in decks and hides it on the home screen."""
-    global container
+    global container, time_left, current_deck_id
     if container:
         # Show the timer on the deck overview or review screens
         if next_state in ["overview", "review"]:
+            # Using .get('id') safely pulls the ID of the active deck
+            active_deck_id = mw.col.decks.current().get('id')
+
+            # This prevents the timer from resetting if you just click between review and overview
+            #triggers if you enter a new deck or com from deck browser
+            if active_deck_id != current_deck_id or old_state == "deckBrowser":
+                current_deck_id = active_deck_id
+
+                #Fetch the new time based on this specific deck's cards
+                new_duration = get_dynamic_timer_duration()
+                time_left = new_duration  # Will properly set to 0 if the deck is empty
+                update_display()
+
             container.show()
         # Hide the timer when returning to the main deck browser
         elif next_state == "deckBrowser":
+            #Clear the deck ID so it's ready to recalculate next time you click a deck ---
+            current_deck_id = None 
             container.hide()
 
 gui_hooks.profile_did_open.append(setup_timer_ui)
